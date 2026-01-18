@@ -425,5 +425,91 @@ def should_i_queue_api(request):
     ]
     return JsonResponse(random.choice(decisions))
 
+
+
+from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
+from django.contrib.auth import login, logout, authenticate
+from django.shortcuts import render, redirect
+from .models import GameScore
+def signup_view(request):
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            return redirect('home')
+    else:
+        form = UserCreationForm()
+    return render(request, 'corestuff/signup.html', {'form': form})
+
+def login_view(request):
+    if request.method == 'POST':
+        form = AuthenticationForm(data=request.POST)
+        if form.is_valid():
+            user = form.get_user()
+            login(request, user)
+            return redirect('home')
+    else:
+        form = AuthenticationForm()
+    return render(request, 'corestuff/login.html', {'form': form})
+
+def logout_view(request):
+    if request.method == 'POST':
+        logout(request)
+        return redirect('home')
+    
+from django.contrib.auth.decorators import login_required
+
+
+
+@login_required
+def save_score_api(request):
+    score_val = request.POST.get('score')
+    if score_val:
+        GameScore.objects.create(user=request.user, score=score_val)
+        return JsonResponse({"status": "success"})
+    return JsonResponse({"status": "error"}, status=400)
+
 def reaction_test_page(request):
-    return render(request, "corestuff/reaction_test.html")
+    # Fetch top 10 unique high scores
+    leaderboard = GameScore.objects.select_related('user').order_by('-score')[:10]
+    return render(request, "corestuff/reaction_test.html", {"leaderboard": leaderboard})
+
+
+@login_required
+def save_score_api(request):
+    if request.method == 'POST':
+        score_val = request.POST.get('score')
+        if score_val:
+            new_score = int(score_val)
+            # 1. Get the existing score for this user (if any)
+            user_score_obj, created = GameScore.objects.get_or_create(
+                user=request.user, 
+                defaults={'score': new_score}
+            )
+
+            # 2. If it wasn't just created, check if the new score is actually higher
+            if not created:
+                if new_score > user_score_obj.score:
+                    user_score_obj.score = new_score
+                    user_score_obj.save()
+                    return JsonResponse({"status": "success", "message": "New High Score!"})
+                else:
+                    return JsonResponse({"status": "success", "message": "Score saved, but not a personal best."})
+            
+            return JsonResponse({"status": "success", "message": "New High Score!"})
+
+    return JsonResponse({"status": "error"}, status=400)
+
+from .models import Comment
+
+login_required(login_url='login')
+def community_wall(request):
+    if request.method == "POST":
+        content = request.POST.get("comment_text")
+        if content:
+            Comment.objects.create(user=request.user, text=content)
+            return redirect('community_wall')
+
+    comments = Comment.objects.all()[:50] # Show last 50
+    return render(request, 'corestuff/community.html', {'comments': comments})

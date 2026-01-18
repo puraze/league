@@ -35,12 +35,12 @@
             </div>
         </div>
 
-        <canvas id="game-canvas" width="800" height="500" class="rounded-3xl border-4 border-gray-900 shadow-2xl"></canvas>
+        <canvas id="game-canvas" width="1000" height="600" class="rounded-3xl border-4 border-gray-900 shadow-2xl max-w-full h-auto"></canvas>
 
-        <div id="start-overlay" class="absolute inset-0 bg-black/80 rounded-3xl flex flex-col items-center justify-center text-center p-10">
-            <h2 class="text-3xl font-black text-white mb-4">CAN YOU EVEN LAST HIT?</h2>
+        <div id="start-overlay" class="absolute inset-0 bg-black/80 rounded-3xl flex flex-col items-center justify-center text-center p-10 z-20">
+            <h2 class="text-4xl font-black text-white mb-4 uppercase">Can you even last hit?</h2>
             <p class="text-gray-400 mb-8 max-w-sm">Minions appear faster every 10 seconds. Miss 3, and your career is over.</p>
-            <button id="start-btn" class="px-12 py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black rounded-2xl transition-all uppercase tracking-widest text-xl shadow-lg">
+            <button id="start-btn" class="px-12 py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black rounded-2xl transition-all uppercase tracking-widest text-xl shadow-lg active:scale-95">
                 Start Warmup
             </button>
         </div>
@@ -51,8 +51,37 @@
         <p id="commentary" class="text-gray-400 mt-2 font-medium italic"></p>
         <button onclick="location.reload()" class="mt-6 text-yellow-500 underline font-bold uppercase tracking-widest hover:text-white">Retry</button>
     </div>
+
+    <div class="mt-12 w-full max-w-md bg-black/60 border border-gray-800 rounded-2xl p-6 shadow-2xl">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-xs font-black uppercase tracking-[0.3em] text-gray-500">Hall of Fame</h3>
+            <span class="px-2 py-0.5 rounded bg-red-500/10 text-red-500 text-[8px] font-bold uppercase">Top Rankers</span>
+        </div>
+        
+        <div class="space-y-4">
+            {% for entry in leaderboard %}
+            <div class="flex justify-between items-center group">
+                <div class="flex items-center gap-3">
+                    <span class="text-[10px] font-black {% if forloop.counter <= 3 %}text-yellow-500{% else %}text-gray-600{% endif %}">
+                        #{{ forloop.counter }}
+                    </span>
+                    <span class="text-sm font-bold tracking-tight {% if entry.user == request.user %}text-yellow-400{% else %}text-gray-300{% endif %}">
+                        {{ entry.user.username }}
+                    </span>
+                </div>
+                <span class="font-mono text-sm {% if forloop.first %}text-yellow-400 drop-shadow-[0_0_8px_rgba(234,179,8,0.5)]{% else %}text-gray-500{% endif %}">
+                    {{ entry.score }}
+                </span>
+            </div>
+            {% if not forloop.last %}<div class="h-[1px] w-full bg-gray-900"></div>{% endif %}
+            {% empty %}
+            <p class="text-center text-gray-600 text-xs italic py-4">No scores yet. Be the first to boom.</p>
+            {% endfor %}
+        </div>
+    </div>
 </div>
 
+{% csrf_token %}
 <script>
     const canvas = document.getElementById('game-canvas');
     const ctx = canvas.getContext('2d');
@@ -66,75 +95,158 @@
     let lives = 3;
     let timeLeft = 30;
     let gameActive = false;
-    let minionSpawnRate = 1200; // ms
-    let minionDuration = 1500;  // how long they stay
+    let minionSpawnRate = 1200; 
+    let minionDuration = 1500;  
     let lastSpawn = 0;
     let minions = [];
+    let particles = []; 
+    let floatingTexts = []; 
     let startTime = 0;
+    let gameInterval;
 
-    class Minion {
-        constructor() {
-            this.x = Math.random() * (canvas.width - 60) + 30;
-            this.y = Math.random() * (canvas.height - 60) + 30;
-            this.radius = 25;
-            this.spawnTime = Date.now();
-            this.color = '#7d37e3'; // Purple Caster Minion
+    class FloatingText {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.alpha = 1;
         }
-
+        update() {
+            this.y -= 1.5;
+            this.alpha -= 0.02;
+        }
         draw() {
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-            ctx.fillStyle = this.color;
-            ctx.fill();
-            // Glow effect
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = this.color;
-            ctx.strokeStyle = "white";
-            ctx.lineWidth = 3;
-            ctx.stroke();
-            ctx.shadowBlur = 0;
+            ctx.save();
+            ctx.globalAlpha = this.alpha;
+            ctx.fillStyle = "#facc15"; // Gold color
+            ctx.font = "bold 24px 'Courier New', monospace";
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = "black";
+            ctx.fillText("+100", this.x - 20, this.y);
+            ctx.restore();
         }
     }
 
-    function updateDifficulty() {
-        let elapsed = (Date.now() - startTime) / 1000;
-        
-        if (elapsed > 20) {
-            minionSpawnRate = 400;
-            minionDuration = 600;
-            diffLabel.innerText = "Difficulty: CHALLENGER (NIGHTMARE)";
-            diffLabel.className = "text-red-500 font-mono font-bold uppercase tracking-widest mt-2 animate-pulse";
-        } else if (elapsed > 10) {
-            minionSpawnRate = 800;
-            minionDuration = 1000;
-            diffLabel.innerText = "Difficulty: PLATINUM (SWEATY)";
-            diffLabel.className = "text-yellow-500 font-mono font-bold uppercase tracking-widest mt-2";
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x;
+            this.y = y;
+            this.color = color;
+            this.size = Math.random() * 3 + 1;
+            this.vx = (Math.random() - 0.5) * 6;
+            this.vy = (Math.random() - 0.5) * 6;
+            this.alpha = 1;
+        }
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.alpha -= 0.03;
+        }
+        draw() {
+            ctx.save();
+            ctx.globalAlpha = this.alpha;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    class Minion {
+        constructor() {
+            this.radius = 38;
+            this.x = Math.random() * (canvas.width - 100) + 50;
+            this.y = Math.random() * (canvas.height - 100) + 50;
+            this.spawnTime = Date.now();
+            this.color = '#7d37e3'; // Purple team
+        }
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+
+            // Staff (Background layer)
+            ctx.strokeStyle = "#854d0e";
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(15, 20);
+            ctx.lineTo(25, -25);
+            ctx.stroke();
+            // Staff Gem
+            ctx.fillStyle = "#fbbf24";
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "#fbbf24";
+            ctx.beginPath();
+            ctx.arc(26, -28, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Body/Hood
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "rgba(0,0,0,0.5)";
+            ctx.beginPath();
+            ctx.moveTo(-25, 30);
+            ctx.quadraticCurveTo(0, -50, 25, 30); // Main Hood
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            ctx.strokeStyle = "#ffffff55";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Face Area
+            ctx.beginPath();
+            ctx.ellipse(0, 5, 12, 10, 0, 0, Math.PI * 2);
+            ctx.fillStyle = "#1a1a1a";
+            ctx.fill();
+
+            // Glowing Eyes
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = "#ff00ea";
+            ctx.fillStyle = "#ff00ea";
+            ctx.beginPath();
+            ctx.arc(-5, 5, 2.5, 0, Math.PI * 2);
+            ctx.arc(5, 5, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
         }
     }
 
     function gameLoop() {
         if (!gameActive) return;
-
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        updateDifficulty();
+        
+        let elapsed = (Date.now() - startTime) / 1000;
+        if (elapsed > 20) {
+            minionSpawnRate = 450; minionDuration = 750;
+            diffLabel.innerText = "Difficulty: CHALLENGER";
+        } else if (elapsed > 10) {
+            minionSpawnRate = 750; minionDuration = 1000;
+            diffLabel.innerText = "Difficulty: PLATINUM";
+        }
 
         const now = Date.now();
-        
-        // Spawn minion
         if (now - lastSpawn > minionSpawnRate) {
             minions.push(new Minion());
             lastSpawn = now;
         }
 
-        // Draw and filter minions
         minions = minions.filter(m => {
             if (now - m.spawnTime > minionDuration) {
                 lives--;
-                checkGameOver();
+                if (lives <= 0) endGame();
                 return false;
             }
             m.draw();
             return true;
+        });
+
+        particles = particles.filter(p => {
+            p.update(); p.draw();
+            return p.alpha > 0;
+        });
+
+        floatingTexts = floatingTexts.filter(t => {
+            t.update(); t.draw();
+            return t.alpha > 0;
         });
 
         requestAnimationFrame(gameLoop);
@@ -143,69 +255,74 @@
     canvas.addEventListener('mousedown', (e) => {
         if (!gameActive) return;
         const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
+        const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+        const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
 
-        let hit = false;
         minions = minions.filter(m => {
             const dist = Math.sqrt((mouseX - m.x)**2 + (mouseY - m.y)**2);
             if (dist < m.radius) {
                 score += 100;
                 scoreEl.innerText = score;
-                hit = true;
+                floatingTexts.push(new FloatingText(m.x, m.y));
+                for(let i=0; i<12; i++) particles.push(new Particle(m.x, m.y, m.color));
                 return false;
             }
             return true;
         });
     });
 
-    function checkGameOver() {
-        if (lives <= 0 || timeLeft <= 0) {
-            endGame();
-        }
-    }
-
     function endGame() {
+        if (!gameActive) return;
         gameActive = false;
+        clearInterval(gameInterval);
         overlay.classList.add('hidden');
         document.getElementById('feedback').classList.remove('hidden');
         
         const rank = document.getElementById('rank-result');
         const comm = document.getElementById('commentary');
 
-        if (score > 4000) {
+        if (score >= 4000) {
             rank.innerText = "RANK: CHALLENGER";
             rank.className = "text-4xl font-black italic text-yellow-400";
-            comm.innerText = "You are a god. Why aren't you pro yet? Oh wait, it's your team.";
-        } else if (score > 2000) {
+            comm.innerText = "You are a god. Why aren't you pro yet?";
+        } else if (score >= 2000) {
             rank.innerText = "RANK: GOLD";
             rank.className = "text-4xl font-black italic text-blue-400";
-            comm.innerText = "Average at best. You'd struggle in a bot game.";
+            comm.innerText = "Average at best. sabaze uketesad gamogdis ra";
         } else {
             rank.innerText = "RANK: IRON IV";
             rank.className = "text-4xl font-black italic text-red-700";
-            comm.innerText = "My grandma clicks faster and she doesn't even have a mouse.";
+            comm.innerText = "alexandres aqvs shenze uketesi reaqcia. literally BRUH washale nebismieri tamashi rac ki gaq";
         }
+
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const formData = new FormData();
+        formData.append('score', score);
+        fetch('/api/save-score/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrftoken },
+            body: formData
+        }).then(res => res.json()).then(data => {
+            if (data.status === 'success' && data.message.includes("New")) {
+                setTimeout(() => location.reload(), 2000);
+            }
+        });
     }
 
     startBtn.addEventListener('click', () => {
         overlay.classList.add('hidden');
+        document.getElementById('feedback').classList.add('hidden');
         gameActive = true;
-        startTime = Date.now();
-        score = 0;
-        lives = 3;
-        minions = [];
-        
-        const gameTimer = setInterval(() => {
-            if (!gameActive) {
-                clearInterval(gameTimer);
-                return;
-            }
+        score = 0; lives = 3; timeLeft = 30;
+        minions = []; particles = []; floatingTexts = [];
+        startTime = Date.now(); lastSpawn = 0;
+        scoreEl.innerText = "0"; timerEl.innerText = "30s";
+        gameInterval = setInterval(() => {
+            if (!gameActive) return;
             timeLeft--;
             timerEl.innerText = timeLeft + "s";
             if (timeLeft <= 0) endGame();
         }, 1000);
-
         gameLoop();
     });
 </script>

@@ -1,0 +1,127 @@
+{% extends "corestuff/base.html" %}
+{% block content %}
+<div class="flex items-center justify-center min-h-[70vh]">
+    <div class="w-full max-w-md bg-gray-900 border-2 border-gray-800 p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+        <div class="absolute -top-24 -right-24 w-48 h-48 bg-yellow-500/10 blur-3xl rounded-full"></div>
+
+        <h2 class="text-3xl font-black text-white italic mb-2 uppercase tracking-tighter">Join the <span class="text-yellow-400">Boom</span></h2>
+        <p class="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-8">Account Registration Protocol</p>
+
+        <form method="POST" id="signup-form" class="space-y-4 text-white">
+            {% csrf_token %}
+            
+            <div id="form-fields-wrapper">
+                {{ form.as_p }}
+            </div>
+
+            <div class="bg-black/50 p-4 rounded-xl border border-gray-800 space-y-2 mt-4">
+                <p class="text-[9px] text-gray-500 uppercase font-black mb-2">Requirement Checklist</p>
+                <div id="req-user" class="flex items-center gap-2 text-xs text-gray-500 transition-colors">
+                    <div class="w-1.5 h-1.5 rounded-full bg-gray-700"></div> User identity established
+                </div>
+                <div id="req-pass" class="flex items-center gap-2 text-xs text-gray-500 transition-colors">
+                    <div class="w-1.5 h-1.5 rounded-full bg-gray-700"></div> Password complexity met (8+ chars)
+                </div>
+                <div id="req-match" class="flex items-center gap-2 text-xs text-gray-500 transition-colors">
+                    <div class="w-1.5 h-1.5 rounded-full bg-gray-700"></div> Passwords synchronized
+                </div>
+            </div>
+
+            <button type="submit" id="submit-btn" class="w-full py-4 bg-gray-800 text-gray-500 font-black rounded-xl transition-all uppercase mt-4 cursor-not-allowed" disabled>
+                Locked
+            </button>
+        </form>
+        <p class="text-gray-500 text-xs mt-6 text-center italic">"By joining, you admit your jungler is always at fault."</p>
+    </div>
+</div>
+
+<style>
+    /* Styling the Django Form Inputs */
+    #form-fields-wrapper p { margin-bottom: 1rem; }
+    #form-fields-wrapper label { display: block; font-size: 10px; text-transform: uppercase; color: #6b7280; font-weight: 800; margin-bottom: 6px; padding-left: 4px; }
+    
+    #form-fields-wrapper input { 
+        width: 100%; 
+        background: #050505; 
+        border: 2px solid #1f2937; 
+        padding: 14px; 
+        border-radius: 12px; 
+        color: white; 
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        outline: none;
+    }
+
+    /* The "Success" State for Inputs */
+    #form-fields-wrapper input.valid-input {
+        border-color: #22c55e; /* Green-500 */
+        box-shadow: 0 0 15px rgba(34, 197, 94, 0.2);
+        background: rgba(34, 197, 94, 0.05);
+    }
+
+    /* Checklist Success State */
+    .text-success { color: #22c55e !important; }
+    .bg-success { background-color: #22c55e !important; box-shadow: 0 0 8px #22c55e; }
+
+    /* Button Ready State */
+    #submit-btn.ready {
+        background-color: #eab308; /* Yellow-500 */
+        color: black;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(234, 179, 8, 0.3);
+    }
+</style>
+
+<script>
+    const form = document.getElementById('signup-form');
+    // Django usually names these: id_username, id_password1, id_password2
+    const userInput = document.getElementById('id_username');
+    const passInput = document.getElementById('id_password1');
+    const passConfirm = document.getElementById('id_password2');
+    const submitBtn = document.getElementById('submit-btn');
+
+    const reqUser = document.getElementById('req-user');
+    const reqPass = document.getElementById('req-pass');
+    const reqMatch = document.getElementById('req-match');
+
+    function validate() {
+        let isUserValid = userInput.value.length >= 3;
+        let isPassValid = passInput.value.length >= 8;
+        let isMatchValid = passConfirm.value === passInput.value && passConfirm.value.length > 0;
+
+        // Toggle Username UI
+        toggleState(userInput, reqUser, isUserValid);
+        // Toggle Password UI
+        toggleState(passInput, reqPass, isPassValid);
+        // Toggle Match UI
+        toggleState(passConfirm, reqMatch, isMatchValid);
+
+        // Final Button State
+        if (isUserValid && isPassValid && isMatchValid) {
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Execute Join Protocol";
+            submitBtn.classList.add('ready');
+        } else {
+            submitBtn.disabled = true;
+            submitBtn.innerText = "Locked";
+            submitBtn.classList.remove('ready');
+        }
+    }
+
+    function toggleState(input, reqLine, isValid) {
+        const dot = reqLine.querySelector('div');
+        if (isValid) {
+            input.classList.add('valid-input');
+            reqLine.classList.add('text-success');
+            dot.classList.add('bg-success');
+        } else {
+            input.classList.remove('valid-input');
+            reqLine.classList.remove('text-success');
+            dot.classList.remove('bg-success');
+        }
+    }
+
+    userInput.addEventListener('input', validate);
+    passInput.addEventListener('input', validate);
+    passConfirm.addEventListener('input', validate);
+</script>
+{% endblock %}

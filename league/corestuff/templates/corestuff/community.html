@@ -1,0 +1,47 @@
+{% extends "corestuff/base.html" %}
+
+{% block title %}Community Wall - MentalBoom.gg{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-12 px-4">
+    <h1 class="text-5xl font-black italic tracking-tighter text-white uppercase mb-8">
+        The <span class="text-yellow-400">Global</span> Wall
+    </h1>
+
+    <div class="bg-black/60 border-2 border-gray-800 p-6 rounded-3xl mb-12 shadow-2xl">
+        <form method="POST" class="space-y-4">
+            {% csrf_token %}
+            <textarea 
+                name="comment_text" 
+                placeholder="Talk your trash here..." 
+                class="w-full bg-gray-900 border border-gray-700 rounded-xl p-4 text-white focus:outline-none focus:border-yellow-500 transition-all"
+                maxlength="280"
+                required
+            ></textarea>
+            <button type="submit" class="bg-yellow-500 hover:bg-yellow-400 text-black font-black py-3 px-8 rounded-xl uppercase tracking-widest transition-transform active:scale-95">
+                Post Message
+            </button>
+        </form>
+    </div>
+
+    <div class="space-y-6">
+        {% for comment in comments %}
+        <div class="bg-black/40 border-l-4 border-yellow-500 p-6 rounded-r-2xl backdrop-blur-sm">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-blue-400 font-mono font-bold uppercase tracking-tight">
+                    {{ comment.user.username }}
+                </span>
+                <span class="text-gray-600 text-[10px] uppercase font-black">
+                    {{ comment.created_at|timesince }} ago
+                </span>
+            </div>
+            <p class="text-gray-200 text-lg leading-relaxed">
+                {{ comment.text }}
+            </p>
+        </div>
+        {% empty %}
+        <p class="text-center text-gray-600 italic">Wall is empty. Be the first to boom.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

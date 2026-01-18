@@ -10,5 +10,11 @@ urlpatterns = [
     path('api/chat-translator/', views.chat_translator_api, name='chat_api'),
     path('api/patch-notes/', views.patch_notes_api, name='patch_notes_api'),
     path('api/should-i-queue/', views.should_i_queue_api, name='should_i_queue_api'),
-    path('reaction-test/', views.reaction_test_page, name='reaction_test'),
+    path('signup/', views.signup_view, name='signup'),
+    path('login/', views.login_view, name='login'),
+    path('logout/', views.logout_view, name='logout'),
+    path('reaction_test/', views.reaction_test_page, name='reaction_test'),
+    # ADD THIS LINE
+    path('api/save-score/', views.save_score_api, name='save_score_api'),
+    path('community/', views.community_wall, name='community_wall'),
 ]
