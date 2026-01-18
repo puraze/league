@@ -425,3 +425,5 @@ def should_i_queue_api(request):
     ]
     return JsonResponse(random.choice(decisions))
 
+def reaction_test_page(request):
+    return render(request, "corestuff/reaction_test.html")

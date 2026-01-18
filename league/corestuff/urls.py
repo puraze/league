@@ -10,4 +10,5 @@ urlpatterns = [
     path('api/chat-translator/', views.chat_translator_api, name='chat_api'),
     path('api/patch-notes/', views.patch_notes_api, name='patch_notes_api'),
     path('api/should-i-queue/', views.should_i_queue_api, name='should_i_queue_api'),
+    path('reaction-test/', views.reaction_test_page, name='reaction_test'),
 ]

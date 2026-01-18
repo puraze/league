@@ -1,0 +1,212 @@
+{% extends "corestuff/base.html" %}
+
+{% block title %}Minion Reaction Test - MentalBoom.gg{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+    #game-canvas {
+        cursor: crosshair;
+        background: radial-gradient(circle, #1a1a2e 0%, #0f0f1a 100%);
+    }
+    .stats-card { background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(10px); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col items-center justify-center min-h-screen py-10 px-4">
+    
+    <div class="text-center mb-6">
+        <h1 class="text-5xl font-black italic tracking-tighter text-white uppercase">
+            Minion <span class="text-yellow-400">Reaction</span> Test
+        </h1>
+        <p id="difficulty-label" class="text-blue-400 font-mono font-bold uppercase tracking-widest mt-2">Difficulty: IRON IV</p>
+    </div>
+
+    <div class="relative group">
+        <div class="absolute top-4 left-4 right-4 flex justify-between pointer-events-none z-10">
+            <div class="stats-card border border-gray-800 p-3 rounded-xl">
+                <p class="text-[10px] text-gray-500 uppercase font-black">Score</p>
+                <p id="score" class="text-2xl text-white font-mono">0</p>
+            </div>
+            <div class="stats-card border border-gray-800 p-3 rounded-xl text-right">
+                <p class="text-[10px] text-gray-500 uppercase font-black">Time Left</p>
+                <p id="timer" class="text-2xl text-red-500 font-mono">30s</p>
+            </div>
+        </div>
+
+        <canvas id="game-canvas" width="800" height="500" class="rounded-3xl border-4 border-gray-900 shadow-2xl"></canvas>
+
+        <div id="start-overlay" class="absolute inset-0 bg-black/80 rounded-3xl flex flex-col items-center justify-center text-center p-10">
+            <h2 class="text-3xl font-black text-white mb-4">CAN YOU EVEN LAST HIT?</h2>
+            <p class="text-gray-400 mb-8 max-w-sm">Minions appear faster every 10 seconds. Miss 3, and your career is over.</p>
+            <button id="start-btn" class="px-12 py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black rounded-2xl transition-all uppercase tracking-widest text-xl shadow-lg">
+                Start Warmup
+            </button>
+        </div>
+    </div>
+
+    <div id="feedback" class="mt-8 text-center hidden">
+        <h3 id="rank-result" class="text-4xl font-black italic text-red-500">RANK: UNRANKED</h3>
+        <p id="commentary" class="text-gray-400 mt-2 font-medium italic"></p>
+        <button onclick="location.reload()" class="mt-6 text-yellow-500 underline font-bold uppercase tracking-widest hover:text-white">Retry</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const timerEl = document.getElementById('timer');
+    const startBtn = document.getElementById('start-btn');
+    const overlay = document.getElementById('start-overlay');
+    const diffLabel = document.getElementById('difficulty-label');
+
+    let score = 0;
+    let lives = 3;
+    let timeLeft = 30;
+    let gameActive = false;
+    let minionSpawnRate = 1200; // ms
+    let minionDuration = 1500;  // how long they stay
+    let lastSpawn = 0;
+    let minions = [];
+    let startTime = 0;
+
+    class Minion {
+        constructor() {
+            this.x = Math.random() * (canvas.width - 60) + 30;
+            this.y = Math.random() * (canvas.height - 60) + 30;
+            this.radius = 25;
+            this.spawnTime = Date.now();
+            this.color = '#7d37e3'; // Purple Caster Minion
+        }
+
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            // Glow effect
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = this.color;
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    function updateDifficulty() {
+        let elapsed = (Date.now() - startTime) / 1000;
+        
+        if (elapsed > 20) {
+            minionSpawnRate = 400;
+            minionDuration = 600;
+            diffLabel.innerText = "Difficulty: CHALLENGER (NIGHTMARE)";
+            diffLabel.className = "text-red-500 font-mono font-bold uppercase tracking-widest mt-2 animate-pulse";
+        } else if (elapsed > 10) {
+            minionSpawnRate = 800;
+            minionDuration = 1000;
+            diffLabel.innerText = "Difficulty: PLATINUM (SWEATY)";
+            diffLabel.className = "text-yellow-500 font-mono font-bold uppercase tracking-widest mt-2";
+        }
+    }
+
+    function gameLoop() {
+        if (!gameActive) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        updateDifficulty();
+
+        const now = Date.now();
+        
+        // Spawn minion
+        if (now - lastSpawn > minionSpawnRate) {
+            minions.push(new Minion());
+            lastSpawn = now;
+        }
+
+        // Draw and filter minions
+        minions = minions.filter(m => {
+            if (now - m.spawnTime > minionDuration) {
+                lives--;
+                checkGameOver();
+                return false;
+            }
+            m.draw();
+            return true;
+        });
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        if (!gameActive) return;
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        let hit = false;
+        minions = minions.filter(m => {
+            const dist = Math.sqrt((mouseX - m.x)**2 + (mouseY - m.y)**2);
+            if (dist < m.radius) {
+                score += 100;
+                scoreEl.innerText = score;
+                hit = true;
+                return false;
+            }
+            return true;
+        });
+    });
+
+    function checkGameOver() {
+        if (lives <= 0 || timeLeft <= 0) {
+            endGame();
+        }
+    }
+
+    function endGame() {
+        gameActive = false;
+        overlay.classList.add('hidden');
+        document.getElementById('feedback').classList.remove('hidden');
+        
+        const rank = document.getElementById('rank-result');
+        const comm = document.getElementById('commentary');
+
+        if (score > 4000) {
+            rank.innerText = "RANK: CHALLENGER";
+            rank.className = "text-4xl font-black italic text-yellow-400";
+            comm.innerText = "You are a god. Why aren't you pro yet? Oh wait, it's your team.";
+        } else if (score > 2000) {
+            rank.innerText = "RANK: GOLD";
+            rank.className = "text-4xl font-black italic text-blue-400";
+            comm.innerText = "Average at best. You'd struggle in a bot game.";
+        } else {
+            rank.innerText = "RANK: IRON IV";
+            rank.className = "text-4xl font-black italic text-red-700";
+            comm.innerText = "My grandma clicks faster and she doesn't even have a mouse.";
+        }
+    }
+
+    startBtn.addEventListener('click', () => {
+        overlay.classList.add('hidden');
+        gameActive = true;
+        startTime = Date.now();
+        score = 0;
+        lives = 3;
+        minions = [];
+        
+        const gameTimer = setInterval(() => {
+            if (!gameActive) {
+                clearInterval(gameTimer);
+                return;
+            }
+            timeLeft--;
+            timerEl.innerText = timeLeft + "s";
+            if (timeLeft <= 0) endGame();
+        }, 1000);
+
+        gameLoop();
+    });
+</script>
+{% endblock %}
