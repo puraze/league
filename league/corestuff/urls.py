@@ -17,4 +17,6 @@ urlpatterns = [
     # ADD THIS LINE
     path('api/save-score/', views.save_score_api, name='save_score_api'),
     path('community/', views.community_wall, name='community_wall'),
+    path('champions_insights/', views.champion_roller, name='champion_roller'),
+    path('quiz/', views.quiz_view, name='quiz_view'),
 ]

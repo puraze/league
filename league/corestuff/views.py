@@ -513,3 +513,77 @@ def community_wall(request):
 
     comments = Comment.objects.all()[:50] # Show last 50
     return render(request, 'corestuff/community.html', {'comments': comments})
+
+import requests
+
+import random
+import requests
+from django.shortcuts import render
+import os
+from django.conf import settings
+import json
+import random
+import requests
+from django.shortcuts import render
+
+def champion_roller(request):
+    # 1. Initialize empty lists as fallbacks
+    boots_list = []
+    legendary_list = []
+    champ_list = ["Garen"] # Default fallback champion
+
+    try:
+        # Fetch Data
+        champ_url = "https://ddragon.leagueoflegends.com/cdn/14.1.1/data/en_US/champion.json"
+        item_url = "https://ddragon.leagueoflegends.com/cdn/14.1.1/data/en_US/item.json"
+        
+        champ_res = requests.get(champ_url).json()
+        item_res = requests.get(item_url).json()
+        
+        # 2. Extract Data safely
+        champ_data = champ_res.get('data', {})
+        item_data = item_res.get('data', {})
+        
+        if champ_data:
+            champ_list = list(champ_data.keys())
+
+        for tid, info in item_data.items():
+            gold = info.get('gold', {}).get('total', 0)
+            purchasable = info.get('gold', {}).get('purchasable')
+            tags = info.get('tags', [])
+            maps = info.get('maps', {})
+
+            if purchasable:
+                # Logic for Boots
+                if "Boots" in tags and gold >= 900:
+                    boots_list.append({"id": tid, "name": info.get('name')})
+                # Logic for Legendaries
+                elif gold >= 2300 and maps.get('11'):
+                    legendary_list.append({"id": tid, "name": info.get('name')})
+
+    except Exception as e:
+        print(f"Error fetching Riot Data: {e}")
+        # Fallback values if API is down
+        boots_list = [{"id": "3006", "name": "Berserker's Greaves"}]
+        legendary_list = [{"id": "3089", "name": "Rabadon's Deathcap"}]
+
+    # 3. Final Context
+    context = {
+        "champ_json": json.dumps(champ_list),
+        "boots_json": json.dumps(boots_list),
+        "legendary_json": json.dumps(legendary_list),
+        "role_json": json.dumps(["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"]),
+        "summoners_standard": json.dumps(["SummonerFlash", "SummonerDot", "SummonerHaste", "SummonerHeal", "SummonerExhaust", "SummonerBarrier", "SummonerBoost", "SummonerTeleport"]),
+        "summoner_smite": "SummonerSmite"
+    }
+    return render(request, 'corestuff/roller.html', context)
+
+def quiz_view(request):
+    # Fetching inside the view ensures 'champs' is always defined when the page loads
+    url = "https://ddragon.leagueoflegends.com/cdn/14.1.1/data/en_US/champion.json"
+    data = requests.get(url).json()
+    champs = data['data']
+
+    return render(request, 'corestuff/quiz.html', {
+        'full_champ_data': champs
+    })

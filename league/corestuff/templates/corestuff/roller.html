@@ -1,0 +1,419 @@
+{% extends "corestuff/base.html" %}
+
+{% block extra_head %}
+<style>
+    body { background-color: #050506; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+
+    /* Mute Toggle Style */
+    #mute-btn {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 300;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 12px;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    #mute-btn:hover { background: rgba(255, 255, 255, 0.1); transform: scale(1.1); }
+    #mute-btn.is-muted svg { fill: #ef4444; }
+
+    /* Tooltip Styling */
+    .item-viewport {
+        position: relative;
+        width: 70px; height: 70px;
+        overflow: hidden;
+        border-radius: 8px;
+        border: 2px solid #222;
+        background: #000;
+        cursor: help;
+    }
+    .tooltip {
+        position: absolute;
+        bottom: 85px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.95);
+        color: #fbbf24;
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: 1px solid #fbbf24;
+        font-size: 10px;
+        font-weight: bold;
+        white-space: nowrap;
+        opacity: 0;
+        visibility: hidden;
+        transition: 0.2s;
+        z-index: 100;
+        pointer-events: none;
+        text-transform: uppercase;
+    }
+    .item-viewport:hover .tooltip { opacity: 1; visibility: visible; bottom: 78px; }
+
+    /* Wheel Animation Styles */
+    .wheel-viewport {
+        position: relative; width: 192px; height: 192px; margin: 0 auto;
+        overflow: hidden; border-radius: 9999px; border: 3px solid #fbbf24; background: #000;
+    }
+    #champ-wheel { display: flex; flex-direction: column; will-change: transform; }
+    .wheel-img { width: 192px; height: 192px; object-fit: cover; flex-shrink: 0; }
+    .item-wheel { display: flex; flex-direction: row; will-change: transform; width: max-content; }
+    .item-wheel-img { width: 70px; height: 70px; flex-shrink: 0; object-fit: contain; }
+
+    .sub-heading { font-weight: 800; font-size: 0.75rem; letter-spacing: 0.25em; color: #4b5563; text-transform: uppercase; margin-bottom: 1rem; }
+
+    /* Ban Modal & Icon Styles */
+    .ban-icon {
+        width: 100%; aspect-ratio: 1; object-fit: cover;
+        border: 2px solid transparent; cursor: pointer;
+        transition: all 0.2s; border-radius: 6px;
+    }
+    .ban-icon.is-banned { filter: grayscale(1) brightness(0.2); border-color: #ef4444; }
+    .ban-icon:hover { transform: scale(1.05); z-index: 10; }
+
+    .win-glow { animation: win-pulse 1s ease-out forwards; }
+    @keyframes win-pulse {
+        0% { border-color: #fbbf24; box-shadow: 0 0 0px #fbbf24; }
+        50% { border-color: #fff; box-shadow: 0 0 60px rgba(251, 191, 36, 0.4); }
+        100% { border-color: #fbbf24; box-shadow: 0 0 10px rgba(251, 191, 36, 0.2); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<button id="mute-btn" onclick="toggleMute()" title="Toggle Sound">
+    <svg id="speaker-icon" width="24" height="24" viewBox="0 0 24 24" fill="white">
+        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+    </svg>
+</button>
+
+<div id="ban-modal" class="fixed inset-0 z-[200] hidden bg-black/95 backdrop-blur-xl p-8 overflow-y-auto">
+    <div class="max-w-6xl mx-auto">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+            <div>
+                <h2 class="text-4xl font-black italic uppercase text-red-500">Ban Hammer</h2>
+                <p class="text-gray-400 uppercase tracking-widest text-xs">
+                    Champions Banned: <span id="ban-count" class="text-white">0</span>
+                </p>
+            </div>
+            <div class="flex flex-wrap gap-4 w-full md:w-auto">
+                <input type="text" id="ban-search" placeholder="SEARCH CHAMPION..." 
+                       class="bg-white/10 border border-white/20 rounded-full px-6 py-2 text-white focus:outline-none focus:border-red-500 w-full md:w-64">
+                <button onclick="clearAllBans()" class="px-6 py-2 border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white font-bold rounded-full uppercase transition-all">
+                    Clear All
+                </button>
+                <button onclick="toggleBanModal()" class="px-8 py-2 bg-white text-black font-bold rounded-full uppercase hover:bg-yellow-500 transition-colors">Done</button>
+            </div>
+        </div>
+        <div id="ban-grid" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3"></div>
+    </div>
+</div>
+
+<div class="flex flex-col items-center justify-center min-h-screen py-12 px-4 text-white">
+    <div class="text-center mb-10">
+        <h1 class="text-7xl font-black italic tracking-tighter uppercase leading-none">ULTIMATE</h1>
+        <h2 class="text-3xl font-light tracking-[0.4em] text-yellow-500 uppercase">Bravery</h2>
+    </div>
+
+    <div class="w-full max-w-4xl p-1 bg-gradient-to-b from-yellow-500/20 to-transparent rounded-[50px]">
+        <div class="bg-[#0a0a0c] border border-white/5 p-8 md:p-12 rounded-[48px] shadow-2xl text-center">
+            
+            <div class="mb-12">
+                <h4 class="sub-heading">Target Champion</h4>
+                <div class="wheel-viewport" id="champ-container">
+                    <div id="champ-wheel">
+                        <img src="https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Garen.png" class="wheel-img">
+                    </div>
+                </div>
+                <h2 id="champ-name" class="text-5xl font-black mt-6 uppercase italic tracking-tighter">???</h2>
+                <div class="inline-block mt-2 px-4 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded-full">
+                    <p id="role-text" class="text-yellow-500 font-mono text-xs uppercase tracking-widest min-w-[120px]">READY TO ROLL</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-black/40 p-6 rounded-3xl border border-white/5">
+                    <h4 class="sub-heading">Summoner Spells</h4>
+                    <div class="flex justify-center gap-6">
+                        <img id="d-spell" src="https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/SummonerFlash.png" class="w-20 h-20 rounded-2xl border-2 border-[#1a1a1a]">
+                        <img id="f-spell" src="https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/SummonerDot.png" class="w-20 h-20 rounded-2xl border-2 border-[#1a1a1a]">
+                    </div>
+                </div>
+
+                <div class="bg-black/40 p-6 rounded-3xl border border-white/5">
+                    <h4 class="sub-heading">Core Build</h4>
+                    <div class="flex flex-wrap justify-center gap-3">
+                        {% for i in "123456" %}
+                        <div class="item-viewport">
+                            <span id="tooltip-{{ forloop.counter }}" class="tooltip">...</span>
+                            <div id="item-wheel-{{ forloop.counter }}" class="item-wheel">
+                                <img src="https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3089.png" class="item-wheel-img">
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col items-center gap-4 mt-12">
+                <div class="flex flex-col sm:flex-row gap-4 w-full justify-center">
+                    <button id="roll-btn" onclick="startUltimateSpin()" class="w-full max-w-xs py-6 bg-yellow-500 hover:bg-white text-black font-black rounded-2xl text-2xl uppercase tracking-widest transition-all">
+                        LOCK IN FATE
+                    </button>
+                    <button id="copy-btn" onclick="copyBuildToClipboard()" class="hidden w-full max-w-xs py-6 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-2xl text-lg uppercase tracking-widest transition-all">
+                        📋 Copy Build
+                    </button>
+                </div>
+                <button onclick="toggleBanModal()" class="text-gray-500 hover:text-red-500 font-bold uppercase tracking-widest text-xs transition-colors mt-2">
+                    🚫 Manage Ban List
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const allChampions = {{ champ_json|safe }};
+    const boots = {{ boots_json|safe }};
+    const legendaries = {{ legendary_json|safe }};
+    const roles = {{ role_json|safe }};
+    const stdSummoners = {{ summoners_standard|safe }};
+    const smite = "{{ summoner_smite }}";
+    
+    let bannedChamps = JSON.parse(localStorage.getItem('bannedChamps')) || [];
+    let isMuted = JSON.parse(localStorage.getItem('isMuted')) || false;
+    let currentBuildString = ""; 
+
+    // Sound Logic
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const playSound = (freq, type, duration, vol) => {
+        if (isMuted) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    };
+
+    const sounds = {
+        tick: () => playSound(150, 'sine', 0.1, 0.1),
+        itemTick: () => playSound(800, 'square', 0.05, 0.02),
+        win: () => {
+            playSound(523.25, 'triangle', 0.5, 0.1);
+            setTimeout(() => playSound(659.25, 'triangle', 0.5, 0.1), 150);
+        }
+    };
+
+    // Mute Logic
+    const muteBtn = document.getElementById('mute-btn');
+    const speakerPath = document.querySelector('#speaker-icon path');
+    window.toggleMute = function() {
+        isMuted = !isMuted;
+        localStorage.setItem('isMuted', isMuted);
+        updateMuteUI();
+    };
+
+    function updateMuteUI() {
+        if (isMuted) {
+            muteBtn.classList.add('is-muted');
+            speakerPath.setAttribute('d', 'M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z');
+        } else {
+            muteBtn.classList.remove('is-muted');
+            speakerPath.setAttribute('d', 'M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z');
+        }
+    }
+    updateMuteUI();
+
+    // Ban Grid Logic
+    const banGrid = document.getElementById('ban-grid');
+    const searchInput = document.getElementById('ban-search');
+    const banCountDisplay = document.getElementById('ban-count');
+
+    function renderBanGrid(filter = "") {
+        banGrid.innerHTML = "";
+        banCountDisplay.innerText = bannedChamps.length;
+        allChampions.sort().forEach(champ => {
+            if (filter && !champ.toLowerCase().includes(filter.toLowerCase())) return;
+            const img = document.createElement('img');
+            img.src = `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/${champ}.png`;
+            img.className = 'ban-icon' + (bannedChamps.includes(champ) ? ' is-banned' : '');
+            img.onclick = () => {
+                if (bannedChamps.includes(champ)) {
+                    bannedChamps = bannedChamps.filter(c => c !== champ);
+                } else {
+                    bannedChamps.push(champ);
+                }
+                localStorage.setItem('bannedChamps', JSON.stringify(bannedChamps));
+                renderBanGrid(searchInput.value);
+                sounds.tick();
+            };
+            banGrid.appendChild(img);
+        });
+    }
+    searchInput.oninput = (e) => renderBanGrid(e.target.value);
+    renderBanGrid();
+
+    window.clearAllBans = function() {
+        if(confirm("Unban everyone?")) {
+            bannedChamps = [];
+            localStorage.setItem('bannedChamps', JSON.stringify(bannedChamps));
+            renderBanGrid(searchInput.value);
+        }
+    };
+
+    window.toggleBanModal = function() {
+        document.getElementById('ban-modal').classList.toggle('hidden');
+    };
+
+    function getRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    window.copyBuildToClipboard = function() {
+        if (!currentBuildString) return;
+        navigator.clipboard.writeText(currentBuildString);
+        const copyBtn = document.getElementById('copy-btn');
+        const originalText = copyBtn.innerText;
+        copyBtn.innerText = "✅ COPIED!";
+        sounds.win();
+        setTimeout(() => { copyBtn.innerText = originalText; }, 2000);
+    };
+
+    window.startUltimateSpin = function() {
+        const availableChamps = allChampions.filter(c => !bannedChamps.includes(c));
+        if (availableChamps.length === 0) { alert("No champions!"); return; }
+
+        const btn = document.getElementById('roll-btn');
+        const copyBtn = document.getElementById('copy-btn');
+        btn.disabled = true; 
+        copyBtn.classList.add('hidden');
+
+        const finalRole = getRandom(roles);
+        const finalChamp = getRandom(availableChamps);
+        
+        // 1. Prepare standard pools
+        const winnerBoot = getRandom(boots);
+        let legPool = [...legendaries];
+        let winnerLegs = [];
+        for(let i=0; i<5; i++) winnerLegs.push(legPool.splice(Math.floor(Math.random() * legPool.length), 1)[0]);
+        
+        // 2. Determine Final Build based on Role
+        let finalBuild = [];
+        if (finalRole === "JUNGLE") {
+            const junglePets = [
+                { id: '1101', name: 'Scorchclaw Pup' },
+                { id: '1102', name: 'Gustwalker Hatchling' },
+                { id: '1103', name: 'Mosstomper Seedling' }
+            ];
+            const starter = getRandom(junglePets);
+            finalBuild = [starter, winnerBoot, ...winnerLegs.slice(0, 4)];
+        } 
+        else if (finalRole === "SUPPORT") {
+            const starter = { id: '3850', name: "World Atlas" };
+            finalBuild = [starter, winnerBoot, ...winnerLegs.slice(0, 4)];
+        } 
+        else {
+            finalBuild = shuffleArray([winnerBoot, ...winnerLegs]);
+        }
+
+        // 3. Determine Spells
+        let finalD, finalF;
+        if (finalRole === "JUNGLE") { 
+            finalD = smite; 
+            finalF = getRandom(stdSummoners); 
+        } else {
+            let tempSumms = [...stdSummoners];
+            finalD = tempSumms.splice(Math.floor(Math.random()*tempSumms.length), 1)[0];
+            finalF = tempSumms.splice(Math.floor(Math.random()*tempSumms.length), 1)[0];
+        }
+
+        // 4. Update Wheels Visuals
+        for(let s=1; s<=6; s++) {
+            const wheel = document.getElementById(`item-wheel-${s}`);
+            const isBoot = boots.some(b => b.id === finalBuild[s-1].id);
+            let itemHtml = '';
+            for (let i = 0; i < 29; i++) {
+                const rand = isBoot ? getRandom(boots) : getRandom(legendaries);
+                itemHtml += `<img src="https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/${rand.id}.png" class="item-wheel-img">`;
+            }
+            itemHtml += `<img src="https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/${finalBuild[s-1].id}.png" class="item-wheel-img">`;
+            wheel.innerHTML = itemHtml; 
+            wheel.style.transition = 'none'; 
+            wheel.style.transform = 'translateX(0)';
+        }
+
+        const champWheel = document.getElementById('champ-wheel');
+        let champHtml = '';
+        for(let i=0; i < 34; i++) champHtml += `<img src="https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/${getRandom(availableChamps)}.png" class="wheel-img">`;
+        champHtml += `<img src="https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/${finalChamp}.png" class="wheel-img">`;
+        champWheel.innerHTML = champHtml; 
+        champWheel.style.transition = 'none'; 
+        champWheel.style.transform = 'translateY(0)';
+
+        // 5. Start Animation
+        champWheel.offsetHeight;
+        const duration = 4;
+        const ease = 'cubic-bezier(0.15, 0, 0.15, 1)';
+        champWheel.style.transition = `transform ${duration}s ${ease}`;
+        champWheel.style.transform = `translateY(-${34 * 192}px)`;
+        for(let s=1; s<=6; s++) {
+            const w = document.getElementById(`item-wheel-${s}`);
+            w.style.transition = `transform ${duration + (s * 0.15)}s ${ease}`;
+            w.style.transform = `translateX(-${29 * 70}px)`;
+        }
+
+        let tickerCount = 0;
+        let ticker = setInterval(() => {
+            document.getElementById('role-text').innerText = getRandom(roles);
+            document.getElementById('d-spell').src = `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/${getRandom(stdSummoners)}.png`;
+            document.getElementById('f-spell').src = `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/${getRandom(stdSummoners)}.png`;
+            if (tickerCount % 2 === 0) sounds.tick();
+            tickerCount++;
+        }, 100);
+
+        for(let i=0; i<20; i++) setTimeout(() => sounds.itemTick(), i * i * 10);
+
+        // 6. Resolution
+        setTimeout(() => {
+            clearInterval(ticker); 
+            sounds.win();
+            document.getElementById('champ-name').innerText = finalChamp;
+            document.getElementById('role-text').innerText = finalRole;
+            document.getElementById('d-spell').src = `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/${finalD}.png`;
+            document.getElementById('f-spell').src = `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/${finalF}.png`;
+            
+            for(let s=1; s<=6; s++) {
+                document.getElementById(`tooltip-${s}`).innerText = finalBuild[s-1].name;
+            }
+
+            // Generate full string for clipboard
+            const itemNames = finalBuild.map(i => i.name).join(', ');
+            currentBuildString = `ULTIMATE BRAVERY: ${finalChamp} (${finalRole}) | Spells: ${finalD}, ${finalF} | Items: ${itemNames}`;
+            
+            btn.disabled = false; 
+            btn.innerText = "ROLL AGAIN"; 
+            copyBtn.classList.remove('hidden');
+            document.getElementById('champ-container').classList.add('win-glow');
+            setTimeout(() => document.getElementById('champ-container').classList.remove('win-glow'), 1200);
+        }, (duration + 1.2) * 1000);
+    };
+});
+</script>
+{% endblock %}

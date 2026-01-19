@@ -1,0 +1,317 @@
+{% extends "corestuff/base.html" %}
+
+{% block extra_head %}
+<style>
+    body { background-color: #050506; color: white; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+    
+    .game-card { 
+        background: #0a0a0c; border: 1px solid #1a1a1a; border-radius: 30px; 
+        box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    }
+    
+    .view-box {
+        width: 100%; height: 320px; background: #000; border-radius: 20px;
+        overflow: hidden; position: relative; border: 2px solid #333;
+    }
+    
+    #target-img {
+        width: 100%; height: 100%; object-fit: cover;
+        transition: all 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .hint-btn {
+        transition: all 0.2s;
+        border: 1px solid rgba(251, 191, 36, 0.3);
+    }
+    .hint-btn:hover:not(:disabled) {
+        background: white !important; color: black !important;
+        transform: translateY(-2px);
+    }
+    .hint-btn:disabled {
+        opacity: 0.4; cursor: not-allowed; border-color: transparent;
+    }
+
+    #end-screen {
+        position: fixed; inset: 0; background: rgba(5,5,6,0.95);
+        display: none; flex-direction: column; align-items: center;
+        justify-content: center; z-index: 1000; backdrop-filter: blur(10px);
+    }
+
+    .rank-glow { text-shadow: 0 0 20px currentColor; }
+
+    .streak-badge {
+        background: linear-gradient(45deg, #f59e0b, #ef4444);
+        padding: 4px 10px; border-radius: 8px; font-size: 12px;
+    }
+
+    /* Suggestion Box Styling */
+    #suggestions::-webkit-scrollbar { width: 6px; }
+    #suggestions::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="end-screen">
+    <h2 class="text-gray-400 uppercase tracking-[0.3em] mb-2 text-sm">Final Evaluation</h2>
+    <div id="rank-icon" class="text-9xl mb-4">🏆</div>
+    <h1 id="rank-name" class="text-7xl font-black italic uppercase mb-2 rank-glow">Gold</h1>
+    <p class="text-2xl mb-8">Total Score: <span id="final-score" class="text-yellow-500 font-bold">0</span></p>
+    <button onclick="location.reload()" class="bg-yellow-500 text-black px-12 py-4 font-black rounded-full uppercase hover:scale-110 transition shadow-lg shadow-yellow-500/20">Restart Protocol</button>
+</div>
+
+<div class="max-w-2xl mx-auto py-8 px-4">
+    <div class="flex justify-between items-end mb-6">
+        <div>
+            <h1 class="text-3xl font-black italic tracking-tighter">CHAMP<span class="text-yellow-500">DLE</span></h1>
+            <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">League Analytics Engine</p>
+        </div>
+        <div class="text-right">
+            <p class="text-xs font-bold text-gray-500 uppercase">Phase</p>
+            <p class="text-2xl font-black"><span id="round-num">1</span><span class="text-gray-600">/10</span></p>
+        </div>
+        <div class="bg-white/5 border border-white/10 px-6 py-3 rounded-2xl text-right min-w-[140px]">
+            <p class="text-[10px] font-bold text-yellow-500/50 uppercase tracking-tighter">Total Points</p>
+            <p id="total-score" class="text-2xl font-black text-yellow-500">0000</p>
+        </div>
+    </div>
+
+    <div class="game-card p-6">
+        <div class="view-box mb-6">
+            <img id="target-img" src="">
+            <div id="overlay" class="absolute inset-0 bg-black/90 flex flex-col items-center justify-center opacity-0 transition-opacity duration-500 z-50">
+                <p id="feedback-msg" class="text-yellow-500 font-bold uppercase tracking-widest mb-2"></p>
+                <h2 id="reveal-name" class="text-5xl font-black italic uppercase text-center"></h2>
+            </div>
+            <div id="streak-ui" class="absolute top-4 left-4 opacity-0 transition-opacity duration-300">
+                <span class="streak-badge font-bold text-white shadow-lg shadow-orange-500/40">🔥 STREAK x<span id="streak-count">0</span></span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3 mb-8">
+            <div class="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                <div class="flex-1 pr-4">
+                    <p class="text-[9px] font-black text-gray-500 uppercase mb-1">Champion Title</p>
+                    <p id="h1-txt" class="text-sm font-medium text-gray-400">Locked...</p>
+                </div>
+                <button onclick="useHint(1)" id="btn-h1" class="hint-btn bg-yellow-500 text-black text-[10px] font-black px-4 py-2 rounded-xl uppercase">-15 PTS</button>
+            </div>
+
+            <div class="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                <div class="flex-1 pr-4">
+                    <p class="text-[9px] font-black text-gray-500 uppercase mb-1">Ability Lore</p>
+                    <p id="h2-txt" class="text-sm font-medium text-gray-400 italic">Locked...</p>
+                </div>
+                <button onclick="useHint(2)" id="btn-h2" class="hint-btn bg-yellow-500 text-black text-[10px] font-black px-4 py-2 rounded-xl uppercase">-25 PTS</button>
+            </div>
+
+            <div class="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                <div class="flex-1 pr-4">
+                    <p class="text-[9px] font-black text-gray-500 uppercase mb-1">Combat Role</p>
+                    <p id="h3-txt" class="text-sm font-medium text-gray-400">Locked...</p>
+                </div>
+                <button onclick="useHint(3)" id="btn-h3" class="hint-btn bg-yellow-500 text-black text-[10px] font-black px-4 py-2 rounded-xl uppercase">-10 PTS</button>
+            </div>
+
+            <div class="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                <div class="flex items-center flex-1 pr-4 gap-4">
+                    <div id="h4-icon-container" class="w-12 h-12 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                        <span class="text-xs text-gray-600">?</span>
+                    </div>
+                    <div>
+                        <p class="text-[9px] font-black text-gray-500 uppercase mb-1 text-left">Visual Profile</p>
+                        <p class="text-xs text-gray-600 italic">Face Reveal</p>
+                    </div>
+                </div>
+                <button onclick="useHint(4)" id="btn-h4" class="hint-btn bg-yellow-500 text-black text-[10px] font-black px-4 py-2 rounded-xl uppercase">-40 PTS</button>
+            </div>
+        </div>
+
+        <div class="relative">
+            <input type="text" id="guess-input" autocomplete="off" placeholder="IDENTIFY TARGET..." 
+                   class="w-full bg-white/5 border-2 border-white/10 rounded-2xl px-6 py-5 text-white text-xl font-bold uppercase tracking-widest focus:outline-none focus:border-yellow-500 transition-all">
+            
+            <div id="suggestions" class="absolute left-0 right-0 top-full mt-2 bg-[#141416] border border-white/10 rounded-xl overflow-hidden z-[100] hidden shadow-2xl"></div>
+
+            <button onclick="checkGuess()" class="absolute right-2 top-2 bottom-2 bg-yellow-500 text-black px-8 font-black rounded-xl uppercase hover:bg-white transition-colors">Submit</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const champs = {{ full_champ_data|safe }};
+    const names = Object.keys(champs);
+    
+    let state = {
+        round: 1,
+        totalScore: 0,
+        currentPotential: 100,
+        streak: 0,
+        currentID: "",
+        hintsUsed: []
+    };
+
+    const input = document.getElementById('guess-input');
+    const suggestionsBox = document.getElementById('suggestions');
+
+    function initRound() {
+        state.currentID = names[Math.floor(Math.random() * names.length)];
+        state.currentPotential = 100;
+        state.hintsUsed = [];
+
+        document.getElementById('round-num').innerText = state.round;
+        document.getElementById('overlay').style.opacity = "0";
+        input.value = "";
+        input.focus();
+        
+        // Reset Hint UI
+        ["h1", "h2", "h3", "h4"].forEach(h => {
+            const btn = document.getElementById(`btn-h${h.slice(1)}`);
+            btn.disabled = false;
+            if(h === 'h1') btn.innerText = "-15 PTS";
+            if(h === 'h2') btn.innerText = "-25 PTS";
+            if(h === 'h3') btn.innerText = "-10 PTS";
+            if(h === 'h4') btn.innerText = "-40 PTS";
+            
+            if(h !== 'h4') document.getElementById(`${h}-txt`).innerText = "Locked...";
+        });
+        document.getElementById('h4-icon-container').innerHTML = '<span class="text-xs text-gray-600">?</span>';
+
+        updateVisuals();
+    }
+
+    function updateVisuals() {
+        const img = document.getElementById('target-img');
+        img.src = `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${state.currentID}_0.jpg`;
+        
+        // More hints = Less blur
+        let blurAmount = 35 - (state.hintsUsed.length * 8);
+        let grayscale = 100 - (state.hintsUsed.length * 20);
+        
+        img.style.filter = `blur(${blurAmount}px) grayscale(${grayscale}%) brightness(0.6)`;
+        img.style.transform = `scale(${1.6 - (state.hintsUsed.length * 0.15)})`;
+    }
+
+    // Autocomplete
+    input.addEventListener('input', () => {
+        const val = input.value.toLowerCase().trim();
+        suggestionsBox.innerHTML = '';
+        if (val.length < 1) { suggestionsBox.classList.add('hidden'); return; }
+
+        const matches = names.filter(n => champs[n].name.toLowerCase().includes(val)).slice(0, 5);
+
+        if (matches.length > 0) {
+            matches.forEach(m => {
+                const item = document.createElement('div');
+                item.className = "flex items-center gap-4 px-6 py-4 hover:bg-yellow-500 hover:text-black cursor-pointer font-bold transition-all border-b border-white/5";
+                item.innerHTML = `
+                    <img src="https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/${m}.png" class="w-10 h-10 rounded-lg">
+                    <span class="uppercase tracking-widest">${champs[m].name}</span>
+                `;
+                item.onclick = () => {
+                    input.value = champs[m].name;
+                    suggestionsBox.classList.add('hidden');
+                    checkGuess();
+                };
+                suggestionsBox.appendChild(item);
+            });
+            suggestionsBox.classList.remove('hidden');
+        } else {
+            suggestionsBox.classList.add('hidden');
+        }
+    });
+
+    input.addEventListener('keypress', (e) => { if (e.key === 'Enter') { suggestionsBox.classList.add('hidden'); checkGuess(); } });
+
+    function useHint(lv) {
+        if (state.hintsUsed.includes(lv)) return;
+        state.hintsUsed.push(lv);
+        const data = champs[state.currentID];
+        const btn = document.getElementById(`btn-h${lv}`);
+        btn.disabled = true;
+        btn.innerText = "OPEN";
+
+        if(lv === 1) {
+            document.getElementById('h1-txt').innerText = data.title;
+            state.currentPotential -= 15;
+        } else if (lv === 2) {
+            let blurb = data.blurb.split('.')[0] + '.';
+            document.getElementById('h2-txt').innerText = blurb.replace(new RegExp(data.name, 'gi'), '???');
+            state.currentPotential -= 25;
+        } else if (lv === 3) {
+            document.getElementById('h3-txt').innerText = data.tags.join(' / ');
+            state.currentPotential -= 10;
+        } else if (lv === 4) {
+            document.getElementById('h4-icon-container').innerHTML = `<img src="https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/${state.currentID}.png" class="w-full h-full object-cover">`;
+            state.currentPotential -= 40;
+        }
+        updateVisuals();
+    }
+
+    function checkGuess() {
+        const guess = input.value.toLowerCase().replace(/[^a-z]/g, '');
+        const actual = state.currentID.toLowerCase().replace(/[^a-z]/g, '');
+
+        if (guess === actual) {
+            handleWin();
+        } else {
+            input.classList.add('border-red-500');
+            setTimeout(() => input.classList.remove('border-red-500'), 500);
+            state.currentPotential = Math.max(state.currentPotential - 5, 5);
+        }
+    }
+
+    function handleWin() {
+        state.streak++;
+        let bonus = state.streak > 1 ? (state.streak * 10) : 0;
+        let finalGain = state.currentPotential + bonus;
+        state.totalScore += finalGain;
+
+        document.getElementById('total-score').innerText = state.totalScore.toString().padStart(4, '0');
+        document.getElementById('reveal-name').innerText = champs[state.currentID].name;
+        document.getElementById('feedback-msg').innerText = `+${finalGain} Points`;
+        document.getElementById('overlay').style.opacity = "1";
+        
+        if(state.streak > 1) {
+            document.getElementById('streak-ui').style.opacity = "1";
+            document.getElementById('streak-count').innerText = state.streak;
+        }
+
+        const img = document.getElementById('target-img');
+        img.style.filter = "blur(0) grayscale(0) brightness(1)";
+        img.style.transform = "scale(1)";
+
+        setTimeout(() => {
+            if (state.round < 10) {
+                state.round++;
+                initRound();
+                document.getElementById('streak-ui').style.opacity = state.streak > 1 ? "1" : "0";
+            } else {
+                showEndScreen();
+            }
+        }, 2500);
+    }
+
+    function showEndScreen() {
+        const screen = document.getElementById('end-screen');
+        const rName = document.getElementById('rank-name');
+        const rIcon = document.getElementById('rank-icon');
+        screen.style.display = 'flex';
+        document.getElementById('final-score').innerText = state.totalScore;
+
+        const s = state.totalScore;
+        if (s > 980) { rName.innerText = "Challenger"; rName.style.color = "#38bdf8"; rIcon.innerText = "💠"; }
+        else if (s > 800) { rName.innerText = "Diamond"; rName.style.color = "#818cf8"; rIcon.innerText = "💎"; }
+        else if (s > 600) { rName.innerText = "Gold"; rName.style.color = "#fbbf24"; rIcon.innerText = "🥇"; }
+        else if (s > 400) { rName.innerText = "Silver"; rName.style.color = "#94a3b8"; rIcon.innerText = "🥈"; }
+        else { rName.innerText = "Iron"; rName.style.color = "#71717a"; rIcon.innerText = "🧱"; }
+    }
+
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !suggestionsBox.contains(e.target)) {
+            suggestionsBox.classList.add('hidden');
+        }
+    });
+
+    initRound();
+</script>
+{% endblock %}

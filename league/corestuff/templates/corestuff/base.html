@@ -17,49 +17,52 @@
                               radial-gradient(circle at bottom left, #450a0a, transparent);
         }
         
-        /* Glassmorphism Navbar */
         .nav-glass {
             background: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(12px);
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             position: sticky;
             top: 0;
-            z-index: 50;
+            z-index: 100;
         }
 
-        .nav-link {
-            position: relative;
-            transition: color 0.3s;
+        /* Fixed Mobile Menu to show all links clearly */
+        #mobile-menu {
+            background: rgba(5, 5, 7, 0.98); 
+            backdrop-filter: blur(20px);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 90;
+            /* Changed to justify-start and added more top padding */
+            justify-content: flex-start;
+            padding-top: 6rem; 
+            padding-bottom: 3rem;
+            overflow-y: auto;
         }
 
+        .nav-link { position: relative; transition: color 0.3s; }
         .nav-link::after {
-            content: '';
-            position: absolute;
-            width: 0;
-            height: 2px;
-            bottom: -4px;
-            left: 0;
-            background-color: #eab308; /* Yellow-500 */
+            content: ''; position: absolute; width: 0; height: 2px;
+            bottom: -4px; left: 0; background-color: #eab308;
             transition: width 0.3s;
         }
+        .nav-link:hover::after { width: 100%; }
 
-        .nav-link:hover::after {
-            width: 100%;
-        }
+        .logo-glow { text-shadow: 0 0 15px rgba(234, 179, 8, 0.4); }
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
 
-        .logo-glow {
-            text-shadow: 0 0 15px rgba(234, 179, 8, 0.4);
-        }
-
-        .container { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem; }
+        /* Hamburger Icon Animation */
+        .hamburger.active .line1 { transform: translateY(8px) rotate(45deg); }
+        .hamburger.active .line2 { opacity: 0; }
+        .hamburger.active .line3 { transform: translateY(-8px) rotate(-45deg); }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
 <body>
     <nav class="nav-glass">
         <div class="container flex justify-between items-center h-20">
-            <a href="{% url 'home' %}" class="flex items-center gap-2 group">
-                <div class="w-8 h-8 bg-yellow-500 rounded-lg transform group-hover:rotate-12 transition-transform duration-300 flex items-center justify-center shadow-[0_0_15px_rgba(234,179,8,0.5)]">
+            
+            <a href="{% url 'home' %}" class="flex items-center gap-2 group z-[110]">
+                <div class="w-9 h-9 bg-yellow-500 rounded-lg transform group-hover:rotate-12 transition-transform duration-300 flex items-center justify-center shadow-[0_0_15px_rgba(234,179,8,0.5)]">
                     <span class="text-black font-black text-xl">M</span>
                 </div>
                 <div class="logo font-black text-2xl tracking-tighter uppercase logo-glow">
@@ -67,45 +70,83 @@
                 </div>
             </a>
 
-            <ul class="hidden md:flex items-center gap-8 list-none">
+            <ul class="hidden lg:flex items-center gap-8 list-none">
                 <li><a href="{% url 'home' %}" class="nav-link text-sm font-bold uppercase tracking-widest text-gray-300 hover:text-white">Home</a></li>
                 <li><a href="{% url 'why_did_i_lose' %}" class="nav-link text-sm font-bold uppercase tracking-widest text-gray-300 hover:text-white">Analysis</a></li>
-                <li><a href="{% url 'tilt_meter_page' %}" class="nav-link text-sm font-bold uppercase tracking-widest text-gray-300 hover:text-white">Tilt Meter</a></li>
+                <li><a href="{% url 'tilt_meter_page' %}" class="nav-link text-sm font-bold uppercase tracking-widest text-gray-300 hover:text-white">Tilt</a></li>
                 <li><a href="{% url 'reaction_test' %}" class="nav-link text-sm font-bold uppercase tracking-widest text-gray-300 hover:text-white">Trainer</a></li>
-                <a href="{% if user.is_authenticated %}{% url 'community_wall' %}{% else %}{% url 'login' %}?next={% url 'community_wall' %}{% endif %}" 
-       class="text-gray-400 hover:text-yellow-400 font-black uppercase tracking-widest text-sm transition-colors">
-       Community
-    </a>
+                <li><a href="{% url 'champion_roller' %}" class="nav-link text-sm font-bold uppercase tracking-widest text-gray-300 hover:text-white">Builds</a></li>
+                <li><a href="{% url 'quiz_view' %}" class="nav-link text-sm font-bold uppercase tracking-widest text-gray-300 hover:text-white text-yellow-500">Quiz</a></li>
+                <li><a href="{% url 'community_wall' %}" class="nav-link text-sm font-bold uppercase tracking-widest text-gray-300 hover:text-white">Wall</a></li>
             </ul>
 
-            <div class="flex items-center gap-6">
+            <div class="flex items-center gap-4 z-[110]">
                 {% if user.is_authenticated %}
-                    <div class="flex items-center gap-4">
-                        <div class="text-right hidden sm:block">
-                            <p class="text-[10px] text-gray-500 uppercase font-black leading-none">Logged in as</p>
-                            <p class="text-sm font-bold text-yellow-500">{{ user.username }}</p>
-                        </div>
-                        <form action="{% url 'logout' %}" method="POST">
-                            {% csrf_token %}
-                            <button type="submit" class="p-2 text-gray-400 hover:text-red-500 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                </svg>
-                            </button>
-                        </form>
+                    <div class="hidden md:block text-right">
+                        <p class="text-[10px] text-gray-500 uppercase font-black leading-none">Ready to Play</p>
+                        <p class="text-sm font-bold text-yellow-500">{{ user.username }}</p>
                     </div>
+                    
+                    <form action="{% url 'logout' %}" method="POST" class="flex items-center">
+                        {% csrf_token %}
+                        <button type="submit" class="p-2 text-gray-400 hover:text-red-500 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                        </button>
+                    </form>
                 {% else %}
-                    <a href="{% url 'login' %}" class="text-sm font-bold text-gray-400 hover:text-white transition-colors">Login</a>
-                    <a href="{% url 'signup' %}" class="bg-yellow-500 hover:bg-yellow-400 text-black px-6 py-2.5 rounded-full font-black text-sm uppercase tracking-tighter transition-all shadow-[0_4px_15px_rgba(234,179,8,0.3)] hover:scale-105 active:scale-95">
-                        Join the Boom
+                    <a href="{% url 'login' %}" class="hidden sm:block text-sm font-bold text-gray-400 hover:text-white transition-colors">Login</a>
+                    <a href="{% url 'signup' %}" class="bg-yellow-500 hover:bg-yellow-400 text-black px-6 py-2.5 rounded-full font-black text-sm uppercase tracking-tighter transition-all shadow-[0_4px_15px_rgba(234,179,8,0.3)] hover:scale-105">
+                        Join
                     </a>
                 {% endif %}
+
+                <button id="menu-btn" class="lg:hidden flex flex-col gap-1.5 p-2 hamburger">
+                    <div class="w-6 h-0.5 bg-white line1 transition-all duration-300"></div>
+                    <div class="w-6 h-0.5 bg-white line2 transition-all duration-300"></div>
+                    <div class="w-6 h-0.5 bg-white line3 transition-all duration-300"></div>
+                </button>
             </div>
+        </div>
+
+        <div id="mobile-menu" class="fixed inset-0 translate-x-full lg:hidden flex flex-col items-center gap-7">
+            <a href="{% url 'home' %}" class="text-xl font-black uppercase tracking-widest hover:text-yellow-500">Home</a>
+            <a href="{% url 'why_did_i_lose' %}" class="text-xl font-black uppercase tracking-widest hover:text-yellow-500">Analysis</a>
+            <a href="{% url 'tilt_meter_page' %}" class="text-xl font-black uppercase tracking-widest hover:text-yellow-500">Tilt Meter</a>
+            <a href="{% url 'reaction_test' %}" class="text-xl font-black uppercase tracking-widest hover:text-yellow-500">Trainer</a>
+            <a href="{% url 'champion_roller' %}" class="text-xl font-black uppercase tracking-widest hover:text-yellow-500">Builds</a>
+            <a href="{% url 'quiz_view' %}" class="text-xl font-black uppercase tracking-widest text-yellow-500">Champion Quiz</a>
+            <a href="{% url 'community_wall' %}" class="text-xl font-black uppercase tracking-widest hover:text-yellow-500">Community</a>
+            
+            <div class="w-16 h-0.5 bg-white/10 my-1"></div>
+            
+            {% if not user.is_authenticated %}
+                <a href="{% url 'login' %}" class="text-lg font-bold text-gray-400">Login</a>
+                <a href="{% url 'signup' %}" class="bg-yellow-500 text-black px-8 py-3 rounded-xl font-black uppercase text-sm">Join the Boom</a>
+            {% else %}
+                <p class="text-xs font-bold text-yellow-500/80 uppercase">Signed in as {{ user.username }}</p>
+                <form action="{% url 'logout' %}" method="POST">
+                    {% csrf_token %}
+                    <button type="submit" class="text-red-500 font-black uppercase tracking-widest text-xs">Logout Session</button>
+                </form>
+            {% endif %}
         </div>
     </nav>
 
     <div class="container mt-10">
         {% block content %}{% endblock %}
     </div>
+
+    <script>
+        const menuBtn = document.getElementById('menu-btn');
+        const mobileMenu = document.getElementById('mobile-menu');
+        
+        menuBtn.addEventListener('click', () => {
+            menuBtn.classList.toggle('active');
+            mobileMenu.classList.toggle('translate-x-full');
+            document.body.style.overflow = menuBtn.classList.contains('active') ? 'hidden' : '';
+        });
+    </script>
 </body>
 </html>
